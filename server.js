@@ -3,6 +3,13 @@ import OpenAI from "openai";
 import dotenv from "dotenv";
 import { WebSocketServer } from "ws";
 import http from "http";
+import cors from "cors";
+app.use(cors({
+  origin: [
+    "http://127.0.0.1:5500",
+    "https://badgrr.net"
+  ]
+}));
 
 dotenv.config();
 
