@@ -21,21 +21,26 @@ const s3 = new S3Client({
 
 // Save route
 app.post("/save", async (req, res) => {
-    const levelId = 1;
-    const packIndex = Math.floor(levelId / 1000) + 1;
-    const filename = `sqlvlpck${String(packIndex).padStart(3, "0")}.txt`;
-
     try {
-        await s3.send(new PutObjectCommand({
-            Bucket: process.env.R2_BUCKET,
-            Key: filename,
-            Body: req.body
-        }));
+        const chunks = [];
 
-        res.send("Saved");
+        req.on("data", chunk => chunks.push(chunk));
+        req.on("end", async () => {
+            const buffer = Buffer.concat(chunks);
+
+            console.log("Received bytes:", buffer.length);
+
+            await s3.send(new PutObjectCommand({
+                Bucket: process.env.R2_BUCKET,
+                Key: "sqlvlpck001.txt",
+                Body: buffer
+            }));
+
+            res.status(200).send("OK");
+        });
     } catch (err) {
         console.error(err);
-        res.status(500).send("Upload failed");
+        res.status(500).send("Server error");
     }
 });
 
