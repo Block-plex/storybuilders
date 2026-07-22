@@ -25,6 +25,51 @@ const s3 = new S3Client({
     }
 });
 
+app.get("/search", async (req, res) => {
+    try {
+        // 1. Load levelinfo.txt
+        let infoText = "";
+        try {
+            const infoObj = await s3.send(new GetObjectCommand({
+                Bucket: process.env.R2_BUCKET,
+                Key: "levelinfo.txt"
+            }));
+
+            const chunks = [];
+            for await (const chunk of infoObj.Body) chunks.push(chunk);
+            infoText = Buffer.concat(chunks).toString("utf8");
+        } catch (err) {
+            // No levels yet
+            return res.json([]);
+        }
+
+        // 2. Parse lines
+        const lines = infoText.trim().split("\n");
+        const levels = [];
+
+        for (const line of lines) {
+            const parts = line.split(",");
+            if (parts.length < 4) continue;
+
+            const [id, name, desc, user] = parts;
+
+            levels.push({
+                id: parseInt(id),
+                name,
+                desc,
+                user: parseInt(user)
+            });
+        }
+
+        // 3. Return all level metadata
+        res.json(levels);
+
+    } catch (err) {
+        console.error(err);
+        res.status(500).send("Server error");
+    }
+});
+
 // Save route
 app.post("/save", async (req, res) => {
     try {
