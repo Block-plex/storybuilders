@@ -44,6 +44,30 @@ app.post("/save", async (req, res) => {
     }
 });
 
+app.get("/download", async (req, res) => {
+    try {
+        const result = await s3.send(new GetObjectCommand({
+            Bucket: process.env.R2_BUCKET,
+            Key: "sqlvlpck001.txt"
+        }));
+
+        const stream = result.Body;
+        const chunks = [];
+
+        for await (const chunk of stream) {
+            chunks.push(chunk);
+        }
+
+        const buffer = Buffer.concat(chunks);
+
+        res.setHeader("Content-Type", "application/octet-stream");
+        res.send(buffer);
+    } catch (err) {
+        console.error(err);
+        res.status(500).send("Server error");
+    }
+});
+
 // Required for Render
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
