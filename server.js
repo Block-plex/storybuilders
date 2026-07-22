@@ -22,22 +22,64 @@ const s3 = new S3Client({
 // Save route
 app.post("/save", async (req, res) => {
     try {
-        const chunks = [];
+        // 1. Download levelinfo.txt (or create if missing)
+        let infoText = "";
+        try {
+            const infoObj = await s3.send(new GetObjectCommand({
+                Bucket: process.env.R2_BUCKET,
+                Key: "levelinfo.txt"
+            }));
 
+            const chunks = [];
+            for await (const chunk of infoObj.Body) chunks.push(chunk);
+            infoText = Buffer.concat(chunks).toString("utf8");
+        } catch (err) {
+            // File doesn't exist yet → start fresh
+            infoText = "";
+        }
+
+        // 2. Determine next level ID
+        let nextId = 1;
+        if (infoText.trim().length > 0) {
+            const lines = infoText.trim().split("\n");
+            const lastLine = lines[lines.length - 1];
+            const lastId = parseInt(lastLine.split(",")[0]);
+            nextId = lastId + 1;
+        }
+
+        // 3. Read binary body
+        const chunks = [];
         req.on("data", chunk => chunks.push(chunk));
         req.on("end", async () => {
             const buffer = Buffer.concat(chunks);
 
-            console.log("Received bytes:", buffer.length);
+            // 4. Save binary file
+            const filename = `level_${String(nextId).padStart(4, "0")}.bin`;
 
             await s3.send(new PutObjectCommand({
                 Bucket: process.env.R2_BUCKET,
-                Key: "sqlvlpck001.txt",
+                Key: filename,
                 Body: buffer
             }));
 
-            res.status(200).send("OK");
+            // 5. Append metadata
+            const name = req.query.name || `Level ${nextId}`;
+            const desc = req.query.desc || "";
+            const user = 0;
+
+            const newLine = `${nextId},${name},${desc},${user}\n`;
+            const updatedInfo = infoText + newLine;
+
+            await s3.send(new PutObjectCommand({
+                Bucket: process.env.R2_BUCKET,
+                Key: "levelinfo.txt",
+                Body: updatedInfo
+            }));
+
+            // 6. Return new ID to client
+            res.json({ id: nextId });
         });
+
     } catch (err) {
         console.error(err);
         res.status(500).send("Server error");
@@ -45,27 +87,24 @@ app.post("/save", async (req, res) => {
 });
 
 app.get("/download", async (req, res) => {
-    try {
-        const result = await s3.send(new GetObjectCommand({
-            Bucket: process.env.R2_BUCKET,
-            Key: "sqlvlpck001.txt"
-        }));
+    const levelId = parseInt(req.query.id);
 
-        const stream = result.Body;
-        const chunks = [];
+    const result = await s3.send(new GetObjectCommand({
+        Bucket: process.env.R2_BUCKET,
+        Key: `level_${String(levelId).padStart(4, "0")}.bin`
+    }));
 
-        for await (const chunk of stream) {
-            chunks.push(chunk);
-        }
+    const stream = result.Body;
+    const chunks = [];
 
-        const buffer = Buffer.concat(chunks);
-
-        res.setHeader("Content-Type", "application/octet-stream");
-        res.send(buffer);
-    } catch (err) {
-        console.error(err);
-        res.status(500).send("Server error");
+    for await (const chunk of stream) {
+        chunks.push(chunk);
     }
+
+    const buffer = Buffer.concat(chunks);
+
+    res.setHeader("Content-Type", "application/octet-stream");
+    res.send(buffer);
 });
 
 // Required for Render
