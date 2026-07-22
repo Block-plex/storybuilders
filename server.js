@@ -1,46 +1,41 @@
 import express from "express";
-import OpenAI from "openai";
-import dotenv from "dotenv";
-import { WebSocketServer } from "ws";
-import http from "http";
-import cors from "cors";
-dotenv.config();
-
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 
+const app = express();
+app.use(express.raw({ type: "application/octet-stream", limit: "10mb" }));
+
+// Cloudflare R2 client
 const s3 = new S3Client({
     region: "auto",
-    endpoint: `https://${process.env.ACCOUNT_ID}.r2.cloudflarestorage.com`,
+    endpoint: process.env.R2_ENDPOINT,
     credentials: {
-        accessKeyId: process.env.ACCESS_KEY,
-        secretAccessKey: process.env.SECRET_ACCESS_KEY
+        accessKeyId: process.env.R2_KEY,
+        secretAccessKey: process.env.R2_SECRET
     }
 });
 
-const app = express();
-app.use(express.json());
-
-app.use(cors({
-  origin: [
-    "http://127.0.0.1:5500",
-    "https://badgrr.net"
-  ]
-}));
-
+// Save route
 app.post("/save", async (req, res) => {
-    const chunks = [];
-    req.on("data", chunk => chunks.push(chunk));
-    req.on("end", async () => {
-        const fileBuffer = Buffer.concat(chunks);
+    const levelId = 1;
+    const packIndex = Math.floor(levelId / 1000) + 1;
+    const filename = `sqlvlpck${String(packIndex).padStart(3, "0")}.txt`;
 
-        // Upload to Cloudflare R2
+    try {
         await s3.send(new PutObjectCommand({
             Bucket: process.env.R2_BUCKET,
-            Key: "save.bin",
-            Body: fileBuffer
+            Key: filename,
+            Body: req.body
         }));
 
         res.send("Saved");
-    });
+    } catch (err) {
+        console.error(err);
+        res.status(500).send("Upload failed");
+    }
 });
 
+// Required for Render
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+    console.log("Server running on port", PORT);
+});
