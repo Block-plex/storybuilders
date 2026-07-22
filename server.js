@@ -2,7 +2,12 @@ import express from "express";
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 
 const app = express();
-app.use(express.raw({ type: "application/octet-stream", limit: "10mb" }));
+app.use((req, res, next) => {
+    res.header("Access-Control-Allow-Origin", "*");
+    res.header("Access-Control-Allow-Headers", "Content-Type");
+    res.header("Access-Control-Allow-Methods", "POST, GET, OPTIONS");
+    next();
+});
 
 // Cloudflare R2 client
 const s3 = new S3Client({
