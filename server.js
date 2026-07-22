@@ -6,11 +6,7 @@ import http from "http";
 import cors from "cors";
 dotenv.config();
 
-const {
-  S3Client,
-  PutObjectCommand,
-  GetObjectCommand
-} = require("@aws-sdk/client-s3");
+import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 
 const s3 = new S3Client({
     region: "auto",
