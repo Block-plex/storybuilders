@@ -43,6 +43,8 @@ app.get("/search", async (req, res) => {
             return res.json([]);
         }
 
+		const searchQ = req.query.search || " ";
+
         // 2. Parse lines
         const lines = infoText.trim().split("\n");
         const levels = [];
@@ -52,6 +54,10 @@ app.get("/search", async (req, res) => {
             if (parts.length < 4) continue;
 
             const [id, name, desc, user] = parts;
+
+            if (!name.toLowerCase().includes(searchQ.toLowerCase())) {
+                continue;
+            }
 
             levels.push({
                 id: parseInt(id),
